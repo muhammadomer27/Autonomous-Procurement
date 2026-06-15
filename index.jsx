@@ -148,6 +148,16 @@ const customStyles = `
     from { transform: rotate(0deg); }
     to   { transform: rotate(360deg); }
   }
+  @keyframes shockwave {
+    0%   { transform: translate(-50%,-50%) scale(0); opacity: 0.9; }
+    100% { transform: translate(-50%,-50%) scale(1); opacity: 0; }
+  }
+  @keyframes agent-flash {
+    0%   { transform: translate(-50%,-50%) scale(0); filter: brightness(3); }
+    40%  { transform: translate(-50%,-50%) scale(1.25); filter: brightness(2); }
+    70%  { transform: translate(-50%,-50%) scale(0.92); filter: brightness(1.2); }
+    100% { transform: translate(-50%,-50%) scale(1); filter: brightness(1); }
+  }
   .animate-orbit-cw   { animation: orbit-cw  linear infinite; }
   .animate-orbit-ccw  { animation: orbit-ccw linear infinite; }
   .animate-spin-self  { animation: spin-self linear infinite; }
@@ -479,6 +489,13 @@ export default function App() {
                 const showAgents    = isStageActive || hoveredStageId === stage.id;
                 const positions     = getAgentPositions(stage.agents.length);
 
+                // Shockwave travels from center to orbit edge (38% of card width ~= half of 320px = ~121px)
+                // Travel duration 0.6s — each agent fires when wave reaches its fixed radius position.
+                // Since all agents are on same radius, they all fire at the same moment (0.6s),
+                // but stagger slightly (0.05s apart) for a cascade feel.
+                const waveMs      = 600;
+                const cascadeMs   = 50;
+
                 return (
                   <div
                     key={stage.id}
@@ -489,8 +506,22 @@ export default function App() {
                     onMouseLeave={() => setHoveredStageId(null)}
                   >
 
-                    {/* Single orbit ring guide */}
-                    <div className="absolute rounded-full border border-indigo-500/15 pointer-events-none transition-all duration-700 animate-orbit-pulse"
+                    {/* Shockwave ring — expands from center when agents show */}
+                    {showAgents && (
+                      <div
+                        key={`wave-${stage.id}-${showAgents}`}
+                        className="absolute pointer-events-none rounded-full border-2 border-indigo-400/70"
+                        style={{
+                          width: '76%', height: '76%',
+                          top: '50%', left: '50%',
+                          boxShadow: '0 0 12px rgba(99,102,241,0.5), inset 0 0 12px rgba(99,102,241,0.2)',
+                          animation: `shockwave ${waveMs}ms cubic-bezier(0.2,0.6,0.4,1) forwards`,
+                        }}
+                      />
+                    )}
+
+                    {/* Faint orbit ring guide */}
+                    <div className="absolute rounded-full border border-indigo-500/10 pointer-events-none transition-all duration-700 animate-orbit-pulse"
                       style={{ width: '76%', height: '76%', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', opacity: showAgents ? 1 : 0 }}
                     />
 
@@ -518,27 +549,29 @@ export default function App() {
                       </span>
                     </div>
 
-                    {/* Static agent nodes — spin on their own axis */}
+                    {/* Agent nodes — flash into existence as shockwave hits */}
                     {stage.agents.map((agent, agentIdx) => {
                       const { x, y }   = positions[agentIdx];
                       const status     = agentStates[agent] || 'idle';
                       const isWorking  = status === 'working';
                       const isComplete = status === 'completed';
                       const AgentIcon  = AGENT_ICONS[agent] || FileText;
-                      const spawnDelay = `${agentIdx * 0.1}s`;
+                      // Delay = wave travel time + small cascade offset per agent
+                      const spawnDelay = showAgents ? `${waveMs + agentIdx * cascadeMs}ms` : '0s';
                       const spinSpeed  = isWorking ? '3s' : '8s';
 
                       return (
                         <div
-                          key={agent}
+                          key={`${agent}-${showAgents}`}
                           className="absolute pointer-events-none"
                           style={{
                             left: `${x}%`,
                             top:  `${y}%`,
-                            // transformOrigin must stay 'center' so scale grows from middle, not corner
-                            transform: `translate(-50%, -50%) scale(${showAgents ? 1 : 0})`,
-                            transition: 'transform 0.5s cubic-bezier(0.34,1.56,0.64,1)',
-                            transitionDelay: showAgents ? spawnDelay : '0s',
+                            // hidden until shockwave fires; then flash animation takes over
+                            transform: 'translate(-50%, -50%) scale(0)',
+                            animation: showAgents
+                              ? `agent-flash 0.55s cubic-bezier(0.16,1,0.3,1) ${spawnDelay} forwards`
+                              : 'none',
                           }}
                         >
                           {/* Gradient glow flair — mirrors the phase icon treatment */}
