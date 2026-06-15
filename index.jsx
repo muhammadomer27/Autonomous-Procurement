@@ -118,16 +118,6 @@ const customStyles = `
     0%, 100% { transform: translateY(0px)  scale(1); }
     50%       { transform: translateY(-4px) scale(1.02); }
   }
-  @keyframes wave-shift {
-    0%   { d: path("M0,12 C20,4 40,20 60,12 C80,4 100,20 120,12 L120,40 L0,40 Z"); }
-    50%  { d: path("M0,18 C20,26 40,10 60,18 C80,26 100,10 120,18 L120,40 L0,40 Z"); }
-    100% { d: path("M0,12 C20,4 40,20 60,12 C80,4 100,20 120,12 L120,40 L0,40 Z"); }
-  }
-  @keyframes wave-shift-slow {
-    0%   { d: path("M0,14 C25,6 50,22 75,14 C100,6 125,22 150,14 L150,40 L0,40 Z"); }
-    50%  { d: path("M0,20 C25,28 50,12 75,20 C100,28 125,12 150,20 L150,40 L0,40 Z"); }
-    100% { d: path("M0,14 C25,6 50,22 75,14 C100,6 125,22 150,14 L150,40 L0,40 Z"); }
-  }
   @keyframes emerge {
     from { transform: translateY(18px); opacity: 0; }
     to   { transform: translateY(0px);  opacity: 1; }
@@ -140,8 +130,6 @@ const customStyles = `
     0%, 100% { transform: translateY(0px); }
     50%       { transform: translateY(-3px); }
   }
-  .animate-wave       { animation: wave-shift 3s ease-in-out infinite; }
-  .animate-wave-slow  { animation: wave-shift-slow 4.5s ease-in-out infinite; }
   .animate-emerge     { animation: emerge 0.6s cubic-bezier(0.16,1,0.3,1) forwards; }
   .animate-ripple     { animation: ripple-out 1s ease-out forwards; }
   .animate-float-agent { animation: float-agent 3s ease-in-out infinite; }
@@ -554,47 +542,8 @@ export default function App() {
                           }
                         </div>
 
-                        {/* Water arena */}
+                        {/* Agent arena */}
                         <div className="relative flex-1 overflow-hidden">
-
-                          {/* Deep water fill */}
-                          <div className="absolute inset-0 bg-gradient-to-b from-indigo-950/20 via-indigo-950/50 to-slate-950/90" />
-
-                          {/* Animated water surface SVG */}
-                          <svg
-                            className="absolute inset-x-0 pointer-events-none z-10"
-                            style={{ bottom: '38%' }}
-                            viewBox="0 0 200 40"
-                            preserveAspectRatio="none"
-                            width="100%" height="40"
-                          >
-                            {/* Back wave (slower, more transparent) */}
-                            <path
-                              className="animate-wave-slow"
-                              fill="rgba(99,102,241,0.12)"
-                              d="M0,14 C25,6 50,22 75,14 C100,6 125,22 150,14 C175,6 200,22 200,14 L200,40 L0,40 Z"
-                            />
-                            {/* Front wave */}
-                            <path
-                              className="animate-wave"
-                              fill="rgba(99,102,241,0.22)"
-                              d="M0,12 C20,4 40,20 60,12 C80,4 100,20 120,12 C140,4 160,20 180,12 C190,8 200,14 200,12 L200,40 L0,40 Z"
-                            />
-                            {/* Surface shimmer line */}
-                            <path
-                              className="animate-wave"
-                              fill="none"
-                              stroke="rgba(34,211,238,0.35)"
-                              strokeWidth="0.8"
-                              d="M0,12 C20,4 40,20 60,12 C80,4 100,20 120,12 C140,4 160,20 180,12 C190,8 200,14 200,12"
-                            />
-                          </svg>
-
-                          {/* Underwater glow */}
-                          <div
-                            className="absolute inset-x-0 pointer-events-none z-0"
-                            style={{ bottom: 0, height: '42%', background: 'linear-gradient(to top, rgba(99,102,241,0.08), transparent)' }}
-                          />
 
                           {/* Agent nodes */}
                           {(() => {
