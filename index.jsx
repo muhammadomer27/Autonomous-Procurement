@@ -4,7 +4,7 @@ import {
   CircleDashed, Activity, FileText, Users,
   Eye, Paperclip, Mic, Boxes,
   AlertCircle, PenTool, Flag, FileCheck,
-  ClipboardCheck, BarChart, Network, Cpu
+  ClipboardCheck, BarChart
 } from 'lucide-react';
 
 // --- Configuration & Data ---
@@ -118,21 +118,43 @@ const customStyles = `
     0%, 100% { transform: translateY(0px)  scale(1); }
     50%       { transform: translateY(-4px) scale(1.02); }
   }
-  @keyframes emerge {
-    from { transform: translateY(18px); opacity: 0; }
-    to   { transform: translateY(0px);  opacity: 1; }
+  @keyframes orbit-cw {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+  @keyframes orbit-ccw {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(-360deg); }
+  }
+  @keyframes agent-spawn {
+    0%   { opacity: 0; transform: translate(-50%, -50%) scale(0); }
+    60%  { transform: translate(-50%, -50%) scale(1.15); }
+    100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  }
+  @keyframes agent-despawn {
+    from { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    to   { opacity: 0; transform: translate(-50%, -50%) scale(0); }
   }
   @keyframes ripple-out {
-    0%   { transform: translate(-50%,-50%) scale(0.6); opacity: 0.9; }
-    100% { transform: translate(-50%,-50%) scale(2.2); opacity: 0; }
+    0%   { transform: scale(0.6); opacity: 0.8; }
+    100% { transform: scale(2.4); opacity: 0; }
   }
-  @keyframes float-agent {
-    0%, 100% { transform: translateY(0px); }
-    50%       { transform: translateY(-3px); }
+  @keyframes orbit-pulse {
+    0%, 100% { opacity: 0.15; }
+    50%       { opacity: 0.35; }
   }
-  .animate-emerge     { animation: emerge 0.6s cubic-bezier(0.16,1,0.3,1) forwards; }
-  .animate-ripple     { animation: ripple-out 1s ease-out forwards; }
-  .animate-float-agent { animation: float-agent 3s ease-in-out infinite; }
+
+  @keyframes spin-self {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+  .animate-orbit-cw   { animation: orbit-cw  linear infinite; }
+  .animate-orbit-ccw  { animation: orbit-ccw linear infinite; }
+  .animate-spin-self  { animation: spin-self linear infinite; }
+  .animate-agent-spawn   { animation: agent-spawn  0.5s cubic-bezier(0.16,1,0.3,1) forwards; }
+  .animate-agent-despawn { animation: agent-despawn 0.3s ease-in forwards; }
+  .animate-ripple     { animation: ripple-out 1.2s ease-out infinite; }
+  .animate-orbit-pulse { animation: orbit-pulse 3s ease-in-out infinite; }
   .animate-float-slow   { animation: float-slow 15s ease-in-out infinite; }
   .animate-float-fast   { animation: float-fast 10s ease-in-out infinite; }
   .animate-pulse-glow   { animation: pulse-glow 4s ease-in-out infinite; }
@@ -143,12 +165,6 @@ const customStyles = `
   .animate-pulse-ring   { animation: pulse-ring 2s cubic-bezier(0.215, 0.610, 0.355, 1) infinite; }
   .animate-radar-sweep  { animation: radar-sweep 6s linear infinite; }
   .animate-swarm-node   { animation: swarm-bobbing 4s ease-in-out infinite; }
-
-  /* 3D Card Flip */
-  .perspective-1000  { perspective: 1000px; }
-  .preserve-3d       { transform-style: preserve-3d; }
-  .backface-hidden   { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
-  .rotate-y-180      { transform: rotateY(180deg); }
 
   /* Cosmic background */
   .bg-mesh {
@@ -199,40 +215,14 @@ const AmbientParticles = ({ active }) => (
   </div>
 );
 
-// --- Water emergence layout ---
-// front row: above the waterline (y ~30%), larger nodes
-// back row:  below the waterline (y ~68%), smaller/dimmer nodes
-// x positions are evenly distributed per row
-const getWaterLayout = (agents) => {
-  const total = agents.length;
-  if (total <= 2) {
-    // single front row
-    const xs = total === 1 ? [50] : [28, 72];
-    return agents.map((_, i) => ({ x: xs[i], y: 32, row: 'front' }));
-  }
-  if (total === 3) {
-    return [
-      { x: 20, y: 30, row: 'front' },
-      { x: 50, y: 28, row: 'front' },
-      { x: 80, y: 30, row: 'front' },
-    ];
-  }
-  if (total === 4) {
-    return [
-      { x: 25, y: 30, row: 'front' },
-      { x: 75, y: 30, row: 'front' },
-      { x: 25, y: 68, row: 'back'  },
-      { x: 75, y: 68, row: 'back'  },
-    ];
-  }
-  // 5: 3 front + 2 back
-  return [
-    { x: 17, y: 30, row: 'front' },
-    { x: 50, y: 26, row: 'front' },
-    { x: 83, y: 30, row: 'front' },
-    { x: 30, y: 68, row: 'back'  },
-    { x: 70, y: 68, row: 'back'  },
-  ];
+// All agents equally spaced on a single circle around the card center.
+// r=38% of card width keeps nodes inside the card for all counts.
+const getAgentPositions = (n) => {
+  const r = 38;
+  return Array.from({ length: n }, (_, i) => {
+    const angle = ((360 / n) * i - 90) * (Math.PI / 180);
+    return { x: 50 + r * Math.cos(angle), y: 50 + r * Math.sin(angle) };
+  });
 };
 
 // --- Main App ---
@@ -466,7 +456,7 @@ export default function App() {
           </form>
         </div>
 
-        {/* Pipeline — flip cards */}
+        {/* Pipeline — orbital cards */}
         <div className={`w-full transition-all duration-1000 shrink-0 ${appState === 'idle' ? 'opacity-70' : 'opacity-100'}`}>
           <div className="animate-slide-up" style={{ animationDelay: '0.1s', animationFillMode: 'both' }}>
             <div className="relative flex justify-between items-start gap-4 md:gap-6 px-2 md:px-4">
@@ -481,153 +471,166 @@ export default function App() {
               </div>
 
               {WORKFLOW_STAGES.map((stage, idx) => {
-                const StageIcon = stage.icon;
-                const isTargetedStage = activeStageIds.includes(stage.id);
-                const isIdle      = appState === 'idle';
-                const isAnalyzing = appState === 'analyzing';
-                const isStageActive = isTargetedStage && (appState === 'executing' || appState === 'completed');
+                const StageIcon     = stage.icon;
+                const isIdle        = appState === 'idle';
+                const isAnalyzing   = appState === 'analyzing';
+                const isStageActive = activeStageIds.includes(stage.id) && (appState === 'executing' || appState === 'completed');
                 const isStageDimmed = !isIdle && !isAnalyzing && !isStageActive;
-                const isFlipped = isStageActive || hoveredStageId === stage.id;
+                const showAgents    = isStageActive || hoveredStageId === stage.id;
+                const positions     = getAgentPositions(stage.agents.length);
 
                 return (
                   <div
                     key={stage.id}
-                    className={`relative w-1/4 h-[280px] perspective-1000 transition-all duration-700 ease-in-out
+                    className={`relative w-1/4 h-[320px] transition-all duration-700 ease-in-out
                       ${isStageDimmed ? 'opacity-15 scale-95 grayscale' : 'opacity-100'}
                       ${isStageActive ? 'scale-[1.02]' : ''}`}
                     onMouseEnter={() => setHoveredStageId(stage.id)}
                     onMouseLeave={() => setHoveredStageId(null)}
                   >
-                    <div className={`w-full h-full preserve-3d transition-transform duration-700 ease-out ${isFlipped ? 'rotate-y-180' : ''}`}>
 
-                      {/* FRONT */}
-                      <div className={`absolute inset-0 backface-hidden flex flex-col items-center justify-center p-4 bg-slate-900/40 hover:bg-slate-900/70 border border-white/10 rounded-2xl shadow-lg transition-all duration-500 backdrop-blur-xl
-                        ${isFlipped ? 'opacity-0 pointer-events-none invisible' : 'opacity-100'}`}>
+                    {/* Single orbit ring guide */}
+                    <div className="absolute rounded-full border border-indigo-500/15 pointer-events-none transition-all duration-700 animate-orbit-pulse"
+                      style={{ width: '76%', height: '76%', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', opacity: showAgents ? 1 : 0 }}
+                    />
 
-                        <div className="relative mb-5">
-                          <div className={`absolute -inset-1.5 bg-gradient-to-r from-indigo-500 via-cyan-400 to-pink-500 rounded-2xl transition-all duration-500 z-0
-                            ${isStageActive ? 'opacity-60 blur-lg scale-110' : isIdle ? 'animate-node-flare' : 'opacity-0 blur-none'}`}
-                            style={isIdle ? { animationDelay: `-${idx * 0.4}s` } : {}}
+                    {/* Central phase icon */}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center z-10 pointer-events-none">
+                      <div className="relative">
+                        {/* Glow behind icon */}
+                        <div className={`absolute -inset-1.5 bg-gradient-to-r from-indigo-500 via-cyan-400 to-pink-500 rounded-2xl transition-all duration-500 z-0
+                          ${isStageActive ? 'opacity-60 blur-lg scale-110' : isIdle ? 'animate-node-flare' : 'opacity-0 blur-none'}`}
+                          style={isIdle ? { animationDelay: `-${idx * 0.4}s` } : {}}
+                        />
+                        <div className={`w-12 h-12 rounded-2xl border backdrop-blur-xl flex items-center justify-center transition-all duration-500 relative z-10
+                          ${isStageActive
+                            ? 'bg-indigo-950/80 border-indigo-400/80 shadow-[0_0_20px_rgba(99,102,241,0.4)]'
+                            : 'bg-slate-950/95 border-white/10'}`}>
+                          <StageIcon className={`w-5 h-5 transition-all duration-500
+                            ${isStageActive ? 'text-cyan-300 drop-shadow-[0_0_8px_rgba(34,211,238,0.7)]' : 'text-slate-100'}`} />
+                        </div>
+                      </div>
+
+                      {/* Stage title — hides when agents are shown */}
+                      <span className={`mt-4 text-xs font-bold text-center text-white leading-snug px-2 tracking-wide drop-shadow-[0_1px_3px_rgba(0,0,0,0.5)] transition-all duration-500
+                        ${showAgents ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}>
+                        {stage.title}
+                      </span>
+                    </div>
+
+                    {/* Static agent nodes — spin on their own axis */}
+                    {stage.agents.map((agent, agentIdx) => {
+                      const { x, y }   = positions[agentIdx];
+                      const status     = agentStates[agent] || 'idle';
+                      const isWorking  = status === 'working';
+                      const isComplete = status === 'completed';
+                      const AgentIcon  = AGENT_ICONS[agent] || FileText;
+                      const spawnDelay = `${agentIdx * 0.1}s`;
+                      const spinSpeed  = isWorking ? '3s' : '8s';
+
+                      return (
+                        <div
+                          key={agent}
+                          className="absolute pointer-events-none"
+                          style={{
+                            left: `${x}%`,
+                            top:  `${y}%`,
+                            // transformOrigin must stay 'center' so scale grows from middle, not corner
+                            transform: `translate(-50%, -50%) scale(${showAgents ? 1 : 0})`,
+                            transition: 'transform 0.5s cubic-bezier(0.34,1.56,0.64,1)',
+                            transitionDelay: showAgents ? spawnDelay : '0s',
+                          }}
+                        >
+                          {/* Gradient glow flair — mirrors the phase icon treatment */}
+                          <div
+                            className={`absolute rounded-full transition-all duration-500 pointer-events-none
+                              ${isWorking  ? 'opacity-70 blur-md animate-node-flare'
+                              : isComplete ? 'opacity-50 blur-md'
+                              : 'opacity-20 blur-sm animate-node-flare'}`}
+                            style={{
+                              inset: -6,
+                              background: isWorking
+                                ? 'radial-gradient(circle, rgba(168,85,247,0.8) 0%, rgba(99,102,241,0.4) 60%, transparent 100%)'
+                                : isComplete
+                                ? 'radial-gradient(circle, rgba(34,211,238,0.7) 0%, rgba(99,102,241,0.3) 60%, transparent 100%)'
+                                : 'radial-gradient(circle, rgba(99,102,241,0.5) 0%, rgba(34,211,238,0.2) 60%, transparent 100%)',
+                              animationDelay: `-${agentIdx * 0.5}s`,
+                            }}
                           />
-                          <div className={`w-13 h-13 rounded-2xl border backdrop-blur-xl flex items-center justify-center transition-all duration-500 relative z-10
-                            ${isStageActive
-                              ? 'bg-indigo-950/80 border-indigo-400/80 shadow-[0_0_20px_rgba(99,102,241,0.4)]'
-                              : isIdle ? 'bg-slate-950/95 border-white/10'
-                              : 'bg-slate-900/50 border-transparent shadow-md'}`}>
-                            <StageIcon className={`w-6 h-6 transition-all duration-500
-                              ${isStageActive ? 'text-cyan-300 drop-shadow-[0_0_8px_rgba(34,211,238,0.7)]'
-                                : isIdle ? 'text-slate-100'
-                                : 'text-slate-500'}`} />
+
+                          {/* SVG: ribbon arc + spinning ring + circle node */}
+                          <svg width="60" height="60" viewBox="0 0 60 60" overflow="visible">
+                            <defs>
+                              <path
+                                id={`arc-${stage.id}-${agentIdx}`}
+                                d="M 4,30 A 26,26 0 1,1 56,30"
+                                fill="none"
+                              />
+                            </defs>
+
+                            {/* Spinning dashed ring */}
+                            <circle
+                              cx="30" cy="30" r="22"
+                              fill="none"
+                              stroke={isWorking  ? 'rgba(168,85,247,0.4)'
+                                    : isComplete ? 'rgba(34,211,238,0.3)'
+                                    : 'rgba(71,85,105,0.25)'}
+                              strokeWidth="1"
+                              strokeDasharray="4 6"
+                              style={{
+                                transformOrigin: '30px 30px',
+                                animation: showAgents ? `spin-self ${spinSpeed} linear infinite` : 'none',
+                              }}
+                            />
+
+                            {/* Ripple ring when working */}
+                            {isWorking && (
+                              <circle cx="30" cy="30" r="18" fill="none"
+                                stroke="rgba(168,85,247,0.4)" strokeWidth="1"
+                                style={{ transformOrigin: '30px 30px', animation: 'ripple-out 1.4s ease-out infinite' }}
+                              />
+                            )}
+
+                            {/* Solid circle node */}
+                            <circle
+                              cx="30" cy="30" r="13"
+                              fill={isWorking  ? 'rgba(99,102,241,0.4)'
+                                  : isComplete ? 'rgba(8,51,68,0.8)'
+                                  : 'rgba(15,23,42,0.9)'}
+                              stroke={isWorking  ? '#a78bfa' : isComplete ? '#22d3ee' : '#475569'}
+                              strokeWidth="1.5"
+                              style={{
+                                filter: isWorking  ? 'drop-shadow(0 0 6px rgba(168,85,247,0.7))'
+                                      : isComplete ? 'drop-shadow(0 0 5px rgba(34,211,238,0.6))'
+                                      : 'none',
+                              }}
+                            />
+
+                            {/* Ribbon label arcing over the top */}
+                            <text>
+                              <textPath href={`#arc-${stage.id}-${agentIdx}`}
+                                startOffset="50%" textAnchor="middle"
+                                style={{
+                                  fontSize: '6.5px', fontWeight: 600, letterSpacing: '0.03em',
+                                  fill: isComplete ? '#67e8f9' : isWorking ? '#c4b5fd' : '#64748b',
+                                  fontFamily: 'inherit',
+                                }}
+                              >
+                                {agent}
+                              </textPath>
+                            </text>
+                          </svg>
+
+                          {/* Icon centered on circle */}
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <AgentIcon className={`w-3.5 h-3.5 transition-colors duration-300
+                              ${isComplete ? 'text-cyan-300 drop-shadow-[0_0_4px_#22d3ee]'
+                              : isWorking  ? 'text-purple-200 animate-pulse'
+                              : 'text-slate-400'}`} />
                           </div>
                         </div>
-
-                        <span className="text-xs font-bold text-center text-white leading-snug px-1 tracking-wide drop-shadow-[0_1px_3px_rgba(0,0,0,0.5)]">
-                          {stage.title}
-                        </span>
-                      </div>
-
-                      {/* BACK — water emergence */}
-                      <div className={`absolute inset-0 backface-hidden rotate-y-180 flex flex-col bg-slate-950 border border-indigo-500/35 rounded-2xl shadow-xl overflow-hidden transition-all duration-500
-                        ${isFlipped ? 'opacity-100 z-30' : 'opacity-0 pointer-events-none invisible z-0'}`}>
-
-                        {/* Header */}
-                        <div className="relative z-20 flex items-center justify-between px-3 pt-2.5 pb-2 border-b border-indigo-500/20 shrink-0">
-                          <span className="text-[9px] font-extrabold text-cyan-300 uppercase tracking-widest flex items-center gap-1 drop-shadow-[0_0_6px_rgba(34,211,238,0.4)]">
-                            <Network className="w-3 h-3 text-cyan-400 animate-pulse shrink-0" />
-                            {stage.title}
-                          </span>
-                          {appState === 'executing' && isStageActive
-                            ? <Cpu className="w-3 h-3 text-cyan-300 animate-spin shrink-0" style={{ animationDuration: '4s' }} />
-                            : <Cpu className="w-3 h-3 text-indigo-400 shrink-0" />
-                          }
-                        </div>
-
-                        {/* Agent arena */}
-                        <div className="relative flex-1 overflow-hidden">
-
-                          {/* Agent nodes */}
-                          {(() => {
-                            const layout = getWaterLayout(stage.agents);
-                            return stage.agents.map((agent, agentIdx) => {
-                              const pos        = layout[agentIdx];
-                              const status     = agentStates[agent] || 'idle';
-                              const isWorking  = status === 'working';
-                              const isComplete = status === 'completed';
-                              const isActive   = isWorking || isComplete;
-                              const isFront    = pos.row === 'front';
-                              const AgentIcon  = AGENT_ICONS[agent] || FileText;
-
-                              // Nodes emerge upward when active: back row rises more to break surface
-                              const emergeY = isActive ? (isFront ? -8 : -18) : 0;
-
-                              return (
-                                <div
-                                  key={agent}
-                                  className="absolute z-20 flex flex-col items-center"
-                                  style={{
-                                    left: `${pos.x}%`,
-                                    top:  `${pos.y}%`,
-                                    transform: `translate(-50%, calc(-50% + ${emergeY}px))`,
-                                    transition: 'transform 0.7s cubic-bezier(0.16,1,0.3,1)',
-                                    animationDelay: `-${agentIdx * 0.9}s`,
-                                  }}
-                                >
-                                  {/* Ripple ring — appears when working */}
-                                  {isWorking && (
-                                    <div
-                                      className="absolute animate-ripple rounded-full border border-purple-400/60 pointer-events-none"
-                                      style={{
-                                        width: isFront ? 32 : 26,
-                                        height: isFront ? 32 : 26,
-                                        top: '50%', left: '50%',
-                                      }}
-                                    />
-                                  )}
-
-                                  {/* Node icon */}
-                                  <div
-                                    className={`rounded-xl border flex items-center justify-center transition-all duration-500
-                                      ${isFront ? 'w-8 h-8' : 'w-6 h-6'}
-                                      ${isWorking  ? 'bg-indigo-500/40 border-purple-400 shadow-[0_0_14px_rgba(168,85,247,0.6)]'
-                                      : isComplete ? 'bg-cyan-950/70 border-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.5)]'
-                                      : isFront    ? 'bg-slate-900/80 border-slate-600/50'
-                                      : 'bg-slate-950/80 border-slate-700/30 opacity-50'}`}
-                                    style={isActive ? { animation: `float-agent ${2.5 + agentIdx * 0.3}s ease-in-out infinite` } : {}}
-                                  >
-                                    <AgentIcon
-                                      className={`transition-all duration-300
-                                        ${isFront ? 'w-3.5 h-3.5' : 'w-2.5 h-2.5'}
-                                        ${isComplete ? 'text-cyan-300 drop-shadow-[0_0_6px_#22d3ee]'
-                                        : isWorking  ? 'text-purple-200 animate-pulse'
-                                        : isFront    ? 'text-slate-400'
-                                        : 'text-slate-600'}`}
-                                    />
-                                  </div>
-
-                                  {/* Label below node */}
-                                  <div
-                                    className={`mt-1 text-center transition-all duration-500 leading-tight
-                                      ${isFront ? 'w-16' : 'w-12'}`}
-                                  >
-                                    <span
-                                      className={`text-[7px] font-semibold break-words
-                                        ${isComplete ? 'text-cyan-300'
-                                        : isWorking  ? 'text-indigo-200'
-                                        : isFront    ? 'text-slate-500'
-                                        : 'text-slate-700'}`}
-                                    >
-                                      {agent}
-                                    </span>
-                                  </div>
-                                </div>
-                              );
-                            });
-                          })()}
-
-                        </div>
-                      </div>
-
-                    </div>
+                      );
+                    })}
                   </div>
                 );
               })}
