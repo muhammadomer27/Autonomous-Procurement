@@ -158,6 +158,20 @@ const customStyles = `
     70%  { transform: translate(-50%,-50%) scale(0.92); filter: brightness(1.2); }
     100% { transform: translate(-50%,-50%) scale(1); filter: brightness(1); }
   }
+  @keyframes burst-out {
+    0%   {
+      transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(0.2);
+      opacity: 0.4;
+      filter: brightness(4) blur(2px);
+    }
+    60%  {
+      transform: translate(calc(-50% + var(--dx) * 0.05), calc(-50% + var(--dy) * 0.05)) scale(1.15);
+      opacity: 1;
+      filter: brightness(1.6) blur(0px);
+    }
+    80%  { transform: translate(-50%, -50%) scale(0.92); filter: brightness(1.1); }
+    100% { transform: translate(-50%, -50%) scale(1);    filter: brightness(1); opacity: 1; }
+  }
   .animate-orbit-cw   { animation: orbit-cw  linear infinite; }
   .animate-orbit-ccw  { animation: orbit-ccw linear infinite; }
   .animate-spin-self  { animation: spin-self linear infinite; }
@@ -488,13 +502,9 @@ export default function App() {
                 const isStageDimmed = !isIdle && !isAnalyzing && !isStageActive;
                 const showAgents    = isStageActive || hoveredStageId === stage.id;
                 const positions     = getAgentPositions(stage.agents.length);
-
-                // Shockwave travels from center to orbit edge (38% of card width ~= half of 320px = ~121px)
-                // Travel duration 0.6s — each agent fires when wave reaches its fixed radius position.
-                // Since all agents are on same radius, they all fire at the same moment (0.6s),
-                // but stagger slightly (0.05s apart) for a cascade feel.
-                const waveMs      = 600;
-                const cascadeMs   = 50;
+                // Card is 320px wide/tall; center is at 50%/50%.
+                // --dx/--dy = offset from agent's final position back to center, in px.
+                const cardPx = 320;
 
                 return (
                   <div
@@ -505,20 +515,6 @@ export default function App() {
                     onMouseEnter={() => setHoveredStageId(stage.id)}
                     onMouseLeave={() => setHoveredStageId(null)}
                   >
-
-                    {/* Shockwave ring — expands from center when agents show */}
-                    {showAgents && (
-                      <div
-                        key={`wave-${stage.id}-${showAgents}`}
-                        className="absolute pointer-events-none rounded-full border-2 border-indigo-400/70"
-                        style={{
-                          width: '76%', height: '76%',
-                          top: '50%', left: '50%',
-                          boxShadow: '0 0 12px rgba(99,102,241,0.5), inset 0 0 12px rgba(99,102,241,0.2)',
-                          animation: `shockwave ${waveMs}ms cubic-bezier(0.2,0.6,0.4,1) forwards`,
-                        }}
-                      />
-                    )}
 
                     {/* Faint orbit ring guide */}
                     <div className="absolute rounded-full border border-indigo-500/10 pointer-events-none transition-all duration-700 animate-orbit-pulse"
@@ -549,16 +545,18 @@ export default function App() {
                       </span>
                     </div>
 
-                    {/* Agent nodes — flash into existence as shockwave hits */}
+                    {/* Agent nodes — burst outward from center icon */}
                     {stage.agents.map((agent, agentIdx) => {
                       const { x, y }   = positions[agentIdx];
                       const status     = agentStates[agent] || 'idle';
                       const isWorking  = status === 'working';
                       const isComplete = status === 'completed';
                       const AgentIcon  = AGENT_ICONS[agent] || FileText;
-                      // Delay = wave travel time + small cascade offset per agent
-                      const spawnDelay = showAgents ? `${waveMs + agentIdx * cascadeMs}ms` : '0s';
                       const spinSpeed  = isWorking ? '3s' : '8s';
+                      // Vector from agent's final position back to card center, in px
+                      const dx = ((50 - x) / 100) * cardPx;
+                      const dy = ((50 - y) / 100) * cardPx;
+                      const spawnDelay = showAgents ? `${agentIdx * 60}ms` : '0s';
 
                       return (
                         <div
@@ -567,10 +565,11 @@ export default function App() {
                           style={{
                             left: `${x}%`,
                             top:  `${y}%`,
-                            // hidden until shockwave fires; then flash animation takes over
+                            '--dx': `${dx}px`,
+                            '--dy': `${dy}px`,
                             transform: 'translate(-50%, -50%) scale(0)',
                             animation: showAgents
-                              ? `agent-flash 0.55s cubic-bezier(0.16,1,0.3,1) ${spawnDelay} forwards`
+                              ? `burst-out 0.6s cubic-bezier(0.22,1,0.36,1) ${spawnDelay} forwards`
                               : 'none',
                           }}
                         >
